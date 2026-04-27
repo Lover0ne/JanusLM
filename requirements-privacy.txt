@@ -1,0 +1,23 @@
+# Privacy mode dependencies — install with: pip install -r requirements-privacy.txt
+# These are optional and only needed when privacy mode is enabled.
+# Base wiki tools (requirements.txt) do NOT depend on these.
+
+# PII detection model runtime
+# The openai/privacy-filter model uses a custom architecture (openai_privacy_filter)
+# that requires transformers built from source until an official release includes it.
+# Once a stable release supports it, replace the git line with: transformers>=X.Y.Z
+transformers @ git+https://github.com/huggingface/transformers.git
+
+# ONNX runtime (optional — faster inference, CPU-only)
+# The script falls back to standard PyTorch if ONNX is unavailable.
+onnxruntime
+# NOTE: optimum[onnxruntime] currently has a version conflict with transformers
+# from source. Uncomment once optimum supports the new transformers version:
+# optimum[onnxruntime]
+
+# Text extraction (pure Python, per-format)
+python-docx
+pdfplumber
+python-pptx
+openpyxl
+beautifulsoup4

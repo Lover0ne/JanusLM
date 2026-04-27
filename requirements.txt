@@ -1,0 +1,7 @@
+# All dependencies — install with: pip install -r requirements.txt
+
+# Wiki tools (graph, validation)
+networkx
+scikit-learn
+python-frontmatter
+rapidfuzz

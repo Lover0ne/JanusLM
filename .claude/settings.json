@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'd=\"$PWD\"; while [ ! -f \"$d/CLAUDE.md\" ] && [ \"$d\" != \"/\" ] && [ \"$d\" != \"$(dirname \"$d\")\" ]; do d=\"$(dirname \"$d\")\"; done; test -f \"$d/.deps-ok\" || echo \"🏛️ [JANUS] Dependencies not found. Invoke /janus-setup before doing anything else.\"'"
+          },
+          {
+            "type": "command",
+            "command": "python -c \"import os,sys;d=os.getcwd()\nwhile not os.path.exists(os.path.join(d,'CLAUDE.md')) and d!=os.path.dirname(d):\n  d=os.path.dirname(d)\nos.chdir(d);sys.path.insert(0,os.path.join(d,'tools'));from privacy_filter import cmd_hook_check;cmd_hook_check()\""
+          }
+        ]
+      }
+    ]
+  }
+}
