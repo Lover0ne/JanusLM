@@ -265,7 +265,7 @@ All scripts accept `--help` for full options. Most support `--json` for machine-
 </table>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/0c4eb0b0-d40a-4aa6-997e-0fb6deb4f73c" alt="JanusLM Agent Architecture" />
+  <img src="https://github.com/user-attachments/assets/546b7b48-b690-4dfc-9592-301b99d207f0" alt="JanusLM Three-Axis Search Model" />
 </p>
 
 ### Deterministic + semantic architecture
@@ -373,7 +373,7 @@ The knowledge base can be modeled as a sparse matrix where **rows are pages** (s
 The agent classifies intent before any retrieval. If the query is operational (no KB context needed), it skips the knowledge base entirely. If uncertain, it checks the index — if nothing matches, it moves on without forcing wiki content into the answer.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/546b7b48-b690-4dfc-9592-301b99d207f0" alt="JanusLM Three-Axis Search Model" />
+  <img src="https://github.com/user-attachments/assets/0c4eb0b0-d40a-4aa6-997e-0fb6deb4f73c" alt="JanusLM Agent Architecture" />
 </p>
 
 ### Axis 1 — Project Search (vertical)
