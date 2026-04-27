@@ -4,6 +4,8 @@
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/d9dbd0f7-3fda-4fe1-9683-401182f99542" alt="JanusLM" width="600" />
+  <br>
+  <a href="https://www-janus-lm.vercel.app/"><strong>Visit the official website</strong></a>
 </p>
 
 ---
@@ -485,6 +487,8 @@ Once installed, a `.deps-ok` marker file is created and the hook stays silent on
 ---
 
 If you find JanusLM useful, share it with someone who might benefit from it. Word of mouth is the best way to help this project grow.
+
+If you'd like to go the extra mile — <a href="https://paypal.me/LorenzoCampagna"><strong>buy my dogs some treats</strong></a> 🐶
 
 ## License
 
