@@ -1,10 +1,10 @@
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/d9dbd0f7-3fda-4fe1-9683-401182f99542" alt="JanusLM" />
-</p>
-
 # JanusLM
 
 > Two-faced AI agent. One side reads, catalogs, connects. The other acts: writes documents, analyzes data, answers questions. Every document in makes answers sharper. Every answer reveals what's still missing. Knowledge and action, in a loop.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d9dbd0f7-3fda-4fe1-9683-401182f99542" alt="JanusLM" width="600" />
+</p>
 
 ---
 
