@@ -7,4 +7,4 @@ $ARGUMENTS can be:
 - Multiple files: `raw/file1.md raw/file2.md`
 - All unprocessed files: `all`
 
-Load the `/maintainer` skill and follow the Ingest Workflow defined there.
+Load the `/wiki-ingest` skill and follow its workflow.

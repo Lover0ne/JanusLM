@@ -25,8 +25,10 @@ Contract:
   --validate id       -> post-validate: read source page, follow all
                         [[wikilinks]], check complete frontmatter, index sync,
                         tag propagation, wikilink integrity, non-empty sections.
-                        Also checks the raw source document for known wiki
-                        pages (entities/concepts) mentioned but not linked.
+                        On linked entity/concept pages, checks that ## In <tag>
+                        has content (catches project content misplaced in
+                        ## Description). Also checks the raw source document
+                        for known wiki pages mentioned but not linked.
                         Returns JSON with status PASS/FAIL + errors + fixes.
                         Missing links are reported as warnings (non-blocking).
   --done id ...       -> mark items as completed, read title from frontmatter
@@ -34,16 +36,27 @@ Contract:
                         with --op ingest --title <title> --tag <tag>
   --new-page            -> create entity/concept page scaffold.
                         Requires --type (entity|concept), --name, --tag.
-                        If page already exists: return JSON with exists: true,
-                        path, current tags (never overwrites).
-                        If not: create scaffold with frontmatter + empty
-                        ## Description. Naming enforced: TitleCase for filename.
+                        If page already exists: add tag to frontmatter if
+                        not present, create ## In <tag> heading if not
+                        present, return JSON with exists: true, tag_added,
+                        section_added. Idempotent — safe to call multiple times.
+                        If not: create scaffold with frontmatter +
+                        ## Description + ## In <tag>. Returns JSON with
+                        exists: false, created: true, section_added.
+                        Naming enforced: TitleCase for filename.
   --skip id --reason "..." -> mark items as skipped with reason.
                         If reason starts with "rejected:", also append
                         to rejected.json for historical tracking.
   --check-rejected id   -> check if the item's source_path is in
                         rejected.json. Returns JSON with rejected: true/false.
                         If true, includes reason, tag, date of previous rejection.
+  --tags                -> list all unique project tags found across wiki pages.
+                        Returns JSON with tags (sorted by page count) and count.
+  --rename-tag OLD --tag NEW -> rename a project tag across all wiki pages.
+                        Replaces tag in frontmatter, renames ## In <old> sections,
+                        updates last_updated. Logs via log_write.py.
+  --touch PAGE          -> update last_updated to today on a wiki page.
+                        Idempotent. If no last_updated field, adds one.
 
 Inputs:  ingest_queue.json, rejected.json, raw/*, wiki/**/*.md, wiki/index.md
 Outputs: ingest_queue.json (mutated), wiki/sources/<slug>.md (created by --init),
@@ -378,27 +391,15 @@ def cmd_skip(ids: list[str], reason: str):
     print(json.dumps(result, indent=2))
 
 
-def add_to_index(section: str, rel_link: str, display_name: str):
-    """Insert '- [Name](path) —' under the given ## section in index.md."""
-    index_text = read_file(INDEX_FILE)
-    if rel_link in index_text:
-        return
-    entry = f"- [{display_name}]({rel_link}) —"
-    header = f"## {section}"
-    lines = index_text.split("\n")
-    insert_at = None
-    for i, line in enumerate(lines):
-        if line.strip() == header:
-            j = i + 1
-            while j < len(lines) and not lines[j].startswith("## "):
-                j += 1
-            while j > i + 1 and not lines[j - 1].strip():
-                j -= 1
-            insert_at = j
-            break
-    if insert_at is not None:
-        lines.insert(insert_at, entry)
-        INDEX_FILE.write_text("\n".join(lines), encoding="utf-8")
+def add_to_index(section: str, rel_link: str, display_name: str, description: str = ""):
+    """Insert entry under ## section in index.md via wiki_index.py."""
+    import subprocess
+    cmd = [
+        sys.executable, str(Path(__file__).parent / "wiki_index.py"),
+        "add", "--section", section, "--name", display_name,
+        "--path", rel_link, "--description", description,
+    ]
+    subprocess.run(cmd, check=False, capture_output=True)
 
 
 def cmd_check_rejected(item_id: str):
@@ -438,12 +439,37 @@ def cmd_new_page(page_type: str, name: str, tag: str):
     if page_path.exists():
         content = read_file(page_path)
         existing_tags = extract_tags(content)
+
+        tag_added = False
+        if tag not in existing_tags:
+            content = re.sub(
+                r'^(tags:\s*\[)([^\]]*)\]',
+                lambda m: f"{m.group(1)}{m.group(2)}, {tag}]" if m.group(2).strip() else f"{m.group(1)}{tag}]",
+                content,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            existing_tags.append(tag)
+            tag_added = True
+
+        section_name = f"In {tag}"
+        section_heading = f"## {section_name}"
+        section_added = None
+        if section_heading not in content:
+            content = content.rstrip() + f"\n\n{section_heading}\n\n"
+            section_added = section_name
+
+        if tag_added or section_added:
+            page_path.write_text(content, encoding="utf-8")
+
         print(json.dumps({
             "exists": True,
             "path": str(page_path.relative_to(REPO_ROOT)).replace("\\", "/"),
             "tags": existing_tags,
             "name": normalized,
             "type": page_type,
+            "tag_added": tag_added,
+            "section_added": section_added,
         }, indent=2))
         return
 
@@ -456,6 +482,8 @@ last_updated: {today}
 ---
 
 ## Description
+
+## In {tag}
 
 """
     page_path.write_text(content, encoding="utf-8")
@@ -471,6 +499,124 @@ last_updated: {today}
         "name": normalized,
         "type": page_type,
         "tag": tag,
+        "section_added": f"In {tag}",
+    }, indent=2))
+
+
+def cmd_touch(page_arg: str):
+    """Update last_updated to today on a wiki page."""
+    p = Path(page_arg)
+    if not p.is_absolute():
+        p = REPO_ROOT / page_arg
+
+    if not p.exists():
+        print(json.dumps({"error": f"Page not found: {page_arg}"}, indent=2), file=sys.stderr)
+        sys.exit(1)
+
+    content = read_file(p)
+    today = date.today().isoformat()
+
+    if re.search(r'^last_updated:', content, re.MULTILINE):
+        content = re.sub(
+            r'^(last_updated:\s*)\S+',
+            f"\\g<1>{today}",
+            content, count=1, flags=re.MULTILINE,
+        )
+    else:
+        content = re.sub(
+            r'^(tags:\s*\[[^\]]*\])',
+            f"\\g<1>\nlast_updated: {today}",
+            content, count=1, flags=re.MULTILINE,
+        )
+
+    p.write_text(content, encoding="utf-8")
+    print(json.dumps({
+        "action": "touch",
+        "page": str(p.relative_to(REPO_ROOT)).replace("\\", "/"),
+        "date": today,
+    }, indent=2))
+
+
+def cmd_tags():
+    """Scan all wiki pages and return unique project tags."""
+    tags: Counter = Counter()
+    for subdir in ["sources", "entities", "concepts"]:
+        d = WIKI_DIR / subdir
+        if not d.exists():
+            continue
+        for p in d.glob("*.md"):
+            content = read_file(p)
+            for t in extract_tags(content):
+                tags[t] += 1
+
+    sorted_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)
+    print(json.dumps({
+        "action": "tags",
+        "tags": [{"tag": t, "pages": c} for t, c in sorted_tags],
+        "count": len(sorted_tags),
+    }, indent=2))
+
+
+def cmd_rename_tag(old_tag: str, new_tag: str):
+    """Rename a project tag across all wiki pages."""
+    today = date.today().isoformat()
+    modified = []
+
+    for subdir in ["sources", "entities", "concepts"]:
+        d = WIKI_DIR / subdir
+        if not d.exists():
+            continue
+        for p in d.glob("*.md"):
+            content = read_file(p)
+            page_tags = extract_tags(content)
+            if old_tag not in page_tags:
+                continue
+
+            rel = str(p.relative_to(REPO_ROOT)).replace("\\", "/")
+            changes = []
+
+            # Replace tag in frontmatter tags list
+            new_tags = [new_tag if t == old_tag else t for t in page_tags]
+            tags_str = ", ".join(new_tags)
+            content = re.sub(
+                r'^(tags:\s*\[)[^\]]*\]',
+                rf'\g<1>{tags_str}]',
+                content, count=1, flags=re.MULTILINE,
+            )
+            changes.append("tag_replaced")
+
+            # Rename ## In <old> section heading
+            old_heading = f"## In {old_tag}"
+            new_heading = f"## In {new_tag}"
+            if old_heading in content:
+                content = content.replace(old_heading, new_heading)
+                changes.append("section_renamed")
+
+            # Update last_updated
+            if re.search(r'^last_updated:', content, re.MULTILINE):
+                content = re.sub(
+                    r'^(last_updated:\s*)\S+',
+                    rf'\g<1>{today}',
+                    content, count=1, flags=re.MULTILINE,
+                )
+            changes.append("date_updated")
+
+            p.write_text(content, encoding="utf-8")
+            modified.append({"path": rel, "changes": changes})
+
+    # Log via log_write.py
+    if modified:
+        cmd = [sys.executable, str(REPO_ROOT / "tools" / "log_write.py"),
+               "--op", "ingest", "--title", f"rename-tag: {old_tag} -> {new_tag}",
+               "--detail", f"{len(modified)} pages updated"]
+        subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True)
+
+    print(json.dumps({
+        "action": "rename_tag",
+        "old_tag": old_tag,
+        "new_tag": new_tag,
+        "modified_count": len(modified),
+        "modified": modified,
     }, indent=2))
 
 
@@ -587,7 +733,7 @@ def check_index_entry(path: Path, rel_path: str) -> list[dict]:
         return [{
             "type": "index_missing",
             "file": rel_path,
-            "fix": f"Add under ## {section} in index.md: - [{name}]({wiki_rel}) -- description"
+            "fix": f"python tools/wiki_index.py add --section {section} --name \"{name}\" --path \"{wiki_rel}\" --description \"<description>\""
         }]
     return []
 
@@ -809,6 +955,30 @@ def cmd_validate(item_id: str):
                     "fix": f"Add '{source_tag}' to tags: [] in the frontmatter of {target_rel}"
                 })
 
+    # Check ## In <tag> sections on linked entity/concept pages
+    if source_tag:
+        from shared import strip_frontmatter
+        for link_name in wikilinks:
+            target = resolve_wikilink(link_name)
+            if target is None:
+                continue
+            target_content = read_file(target)
+            target_type = re.search(r'^type:\s*(\S+)', target_content, re.MULTILINE)
+            if not target_type or target_type.group(1) not in ("entity", "concept"):
+                continue
+            target_rel = str(target.relative_to(REPO_ROOT)).replace("\\", "/")
+            body = strip_frontmatter(target_content)
+            section_heading = f"## In {source_tag}"
+            pattern = rf'^{re.escape(section_heading)}\s*$(.*?)(?=^## |\Z)'
+            match = re.search(pattern, body, re.MULTILINE | re.DOTALL)
+            if not match or not match.group(1).strip():
+                all_errors.append({
+                    "type": "empty_project_section",
+                    "file": target_rel,
+                    "section": f"In {source_tag}",
+                    "fix": f"Write project-specific content under '{section_heading}' in {target_rel} — generic content goes in ## Description",
+                })
+
     # Check for known wiki pages mentioned in source doc but not linked
     raw_doc_path = REPO_ROOT / item["source_path"]
     missing_link_warnings = check_missing_links(raw_doc_path, wikilinks)
@@ -851,6 +1021,9 @@ if __name__ == "__main__":
     group.add_argument("--new-page", action="store_true", help="Create entity/concept page scaffold")
     group.add_argument("--check-rejected", metavar="ID", help="Check if an item was previously rejected")
     group.add_argument("--skip", nargs="+", metavar="ID", help="Mark items as skipped")
+    group.add_argument("--tags", action="store_true", help="List all existing project tags")
+    group.add_argument("--rename-tag", metavar="OLD", help="Rename a project tag (requires --tag NEW)")
+    group.add_argument("--touch", metavar="PAGE", help="Update last_updated to today on a wiki page")
     parser.add_argument("--tag", type=str, help="Project tag (used with --set-tag or --new-page)")
     parser.add_argument("--type", type=str, dest="page_type", help="Page type: entity or concept (used with --new-page)")
     parser.add_argument("--name", type=str, help="Page name (used with --new-page)")
@@ -896,3 +1069,12 @@ if __name__ == "__main__":
             print("Error: --reason is required with --skip", file=sys.stderr)
             sys.exit(1)
         cmd_skip(args.skip, args.reason)
+    elif args.tags:
+        cmd_tags()
+    elif args.rename_tag:
+        if not args.tag:
+            print("Error: --tag is required with --rename-tag", file=sys.stderr)
+            sys.exit(1)
+        cmd_rename_tag(args.rename_tag, args.tag)
+    elif args.touch:
+        cmd_touch(args.touch)

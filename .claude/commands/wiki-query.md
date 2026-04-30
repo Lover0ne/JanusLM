@@ -4,4 +4,4 @@ Usage: /wiki-query $ARGUMENTS
 
 $ARGUMENTS is the question to answer, e.g. `What do we know about RAG?`
 
-Load the `/maintainer` skill and follow the Query Workflow defined there.
+Load the `/wiki-query` skill and follow its workflow.

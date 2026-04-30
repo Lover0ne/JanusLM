@@ -16,6 +16,11 @@ JanusLM turns any AI coding agent into a general-purpose assistant backed by a s
 
 It builds on the **LLM Wiki** concept by Andrej Karpathy — a knowledge management system fully maintained by an AI agent. You drop documents in, the agent decomposes them into structured, interlinked pages: sources, entities, concepts, and syntheses. It maintains an index, a living overview, and a knowledge graph.
 
+> [!IMPORTANT]
+> A fully agentic system works fine with a few documents. Scale it up with hundreds of sources and massive batch operations, and the agent starts making mistakes it can't catch: duplicates, broken links, missing pages. The knowledge base slowly poisons itself.
+>
+> JanusLM is a **deterministically-assisted agentic system**. The agent doesn't work alone. A set of deterministic Python tools handles the heavy lifting: structure, validation, quality checks. Same input, same output, every time. But they never replace what the agent is actually good at: reading a document, understanding it, and connecting ideas across everything it's seen. The tools keep things clean. The agent keeps things smart.
+
 ### Why not RAG?
 
 |                    | Traditional RAG                               | LLM Wiki approach                                        |
@@ -81,7 +86,7 @@ You can talk to the agent in natural language or use shorthand:
 ```
 ingest raw/report.md                       # add a document to the wiki
 query: what are the main themes?           # ask a question across the KB
-lint                                       # spot orphans, broken links, gaps
+health                                     # structural integrity checks
 build graph                                # generate the knowledge graph
 ```
 
@@ -128,7 +133,7 @@ This pattern appears in three workflows:
 |---|---|---|---|
 | **Domain validation** | Semantic affinity assessment | TF-IDF + entity/concept overlap scoring | Final verdict with discrepancy analysis |
 | **Discovery review** | Entity/concept discovery during content writing | Term frequency extraction from source document | Check for high-frequency terms not yet linked |
-| **Query search** | Alias analysis — synonyms, related terms, acronyms | Exhaustive wiki page scanning by term matching | Read matched pages, synthesize answer |
+| **Query search** | Alias analysis — synonyms, related terms, acronyms | Exhaustive wiki page scanning by term matching | Read matched pages, synthesize answer, re-search from synthesis terms |
 
 Why it matters: if the agent sees "63% PROCEED" before reading a document, it tends to align with the number. If it sees a term frequency list before doing discovery, it anchors on those terms instead of reasoning from the text. The blind review ensures both perspectives are genuinely independent.
 
@@ -156,7 +161,7 @@ Python dependencies are detected and installed automatically on first launch —
 
 ### Deterministic Log System
 
-Every wiki operation — ingest, heal, lint, graph — is recorded in `wiki/log.md` through a centralized log writer. The format is structured and machine-parseable: each entry carries a timestamp, operation type, title, and project tag. Only validated operations are accepted, and only authorized workflows can write to the log. A separate report tool can query the history and produce structured summaries filtered by operation, tag, or time range.
+Every wiki operation — ingest, heal, graph, anonymize — is recorded in `wiki/log.md` through a centralized log writer. The format is structured and machine-parseable: each entry carries a timestamp, operation type, title, and project tag. Only validated operations are accepted, and only authorized workflows can write to the log. A separate report tool can query the history and produce structured summaries filtered by operation, tag, or time range.
 
 ### Heal Mechanism
 
@@ -168,7 +173,7 @@ The `/forget` command removes information from the wiki — a whole project, a s
 
 ### File Conversion with Validation
 
-The wiki works with Markdown. If your sources are in other formats, the agent handles the conversion automatically during ingest (or on demand with `/convert`). It writes a conversion script and a validation script in `.staging/`, runs both, and loops until validation passes. Every converted file is verified before it enters the pipeline — no silent failures.
+The wiki works with Markdown. If your sources are in other formats, the agent handles the conversion automatically during ingest (or on demand with `/convert`). It writes a conversion script and a validation script in `staging/`, runs both, and loops until validation passes. Every converted file is verified before it enters the pipeline — no silent failures.
 
 ### Knowledge Graph
 
@@ -178,9 +183,13 @@ The wiki can be visualized as an interactive knowledge graph. Running `build gra
 
 Running `stats` gives you a dashboard of the wiki's current state: page counts by type (sources, entities, concepts), tag distribution across projects, link density, orphan count, and overall coverage metrics. A quick way to understand how the knowledge base is growing and where the gaps are.
 
+### Deterministic Index Management
+
+The wiki index (`wiki/index.md`) is the catalog of all pages — sources, entities, and concepts. Every mutation to the index goes through a deterministic tool (`wiki_index.py`), never through direct agent editing. The tool handles three operations: adding entries with descriptions, removing entries by path, and updating descriptions of existing entries. This guarantees consistent formatting, prevents duplicates, and keeps the index in sync with the actual wiki pages on disk.
+
 ### Wiki Permission Flags
 
-Two independent safety flags control destructive operations: `can_modify` (direct wiki edits outside workflows) and `can_forget` (deletions via the forget workflow). Both default to off. You can check or toggle them at any time — "lock the wiki", "enable modifications", "turn off protection" all work in natural language.
+Three independent safety flags control operations: `can_modify` (direct wiki edits outside workflows), `can_forget` (deletions via the forget workflow), and `can_anonymize_pii` (privacy mode activation). All default to off. You can check or toggle them at any time — "lock the wiki", "enable modifications", "turn off protection" all work in natural language.
 
 ### Beta: Privacy Mode
 
@@ -219,11 +228,17 @@ Everything you can do with JanusLM — via the agent or from terminal.
 |---|---|
 | `ingest raw/doc.md` | Read a document, extract entities and concepts, create/update wiki pages |
 | `query "your question"` | Search the wiki and synthesize an answer with citations |
-| `lint` | Find orphan pages, broken wikilinks, missing entities, tag mismatches, content gaps |
 | `health` | Structural integrity checks — empty pages, index sync, log coverage, tag validation |
-| `heal` | Auto-fix issues found by health and lint (creates missing pages, repairs links) |
+| `heal` | Auto-fix issues found by health (creates missing pages, repairs links) |
 | `stats` | Wiki dashboard — page counts by type, tag distribution, link density |
 | `forget` | Remove a project, entity, or concept from the wiki (with safety confirmation) |
+| `rename tag` | Rename a project tag across all wiki pages (frontmatter + sections) |
+| `wiki-index` | Manage wiki/index.md entries deterministically (add, remove, update descriptions) |
+| `wiki-protect` | Check or toggle wiki permission flags (can_modify, can_forget, can_anonymize_pii) |
+| `wiki-log` | Show recent wiki activity — ingest, heal, graph operations with date filtering |
+| `wiki-validate` | Check domain affinity of a document against a project tag (TF-IDF + entity/concept overlap) |
+| `wiki-terms` | Extract term frequencies from a document for blind review during ingest |
+| `help` | Show all capabilities with natural language examples |
 
 ### Knowledge Graph
 
@@ -258,7 +273,7 @@ All scripts accept `--help` for full options. Most support `--json` for machine-
 </td>
 <td width="50%">
 
-**After** — lean instructions define a general-purpose agent with KB access. Heavy wiki workflows live in a `/maintainer` skill, loaded only when needed. Other skills (docx, pptx, frontend...) slot in the same way.
+**After** — lean instructions define a general-purpose agent with KB access. Wiki workflows are split into focused skills: `/wiki-ingest` for document ingestion, `/wiki-query` for KB search, and `/maintainer` for health, stats, and graph operations. Other skills (docx, pptx, frontend...) slot in the same way.
 
 </td>
 </tr>
@@ -286,7 +301,9 @@ Every ingested document receives a mandatory **project tag** (e.g. `project-alph
 - The **source page** receives the project tag
 - Every **entity page** touched gets the tag added (without removing existing tags)
 - Every **concept page** touched gets the tag added
-- If an entity/concept page already exists with a different project tag, new content goes under a separate heading (`## In project-alpha`)
+- Every entity/concept page always has two sections: `## Description` (generic, project-agnostic) and `## In <tag>` (project-specific context) — even on first creation
+- If an entity/concept page already exists with a different project tag, the tool adds the new tag and creates a new `## In <tag>` section for the project-specific content
+- Tags can be renamed at any time with `--rename-tag OLD --tag NEW` — the tool updates frontmatter, renames `## In` sections, and bumps `last_updated` across all affected pages in one pass
 
 </details>
 
@@ -396,7 +413,7 @@ Cross-reference tags and concepts. Show shared patterns and differences across p
 
 ### How search actually works
 
-Every query goes through the blind review pattern in three phases:
+Every query goes through the blind review pattern in four phases:
 
 1. **Alias analysis (blind).** The agent reads the user's question and generates synonyms, related terms, acronyms, alternate spellings — 10 to 30 terms — through pure reasoning. No tools, no file reads. This ensures the search casts a wide net based on the agent's own understanding.
 
@@ -404,7 +421,9 @@ Every query goes through the blind review pattern in three phases:
 
 3. **Read and synthesize.** The agent reviews the search results, reads every page that matched strongly or whose description is clearly relevant, and only then produces the answer — with inline `[[wikilink]]` citations and a clear separation between KB knowledge and general knowledge.
 
-The agent thinks first, the tool searches exhaustively, and no page is missed because of a vocabulary mismatch.
+4. **Post-synthesis re-search.** Before delivering the answer, the agent reviews its own synthesis and identifies terms, proper nouns, and concepts that appeared in the answer but were not in the original alias analysis. If new terms emerged, they are piped back through `wiki_search.py`. Pages that surface now but weren't in the original results reveal gaps in the alias analysis. The agent reads the new pages, enriches the answer if relevant, and only then delivers. Single pass, no recursion.
+
+The agent thinks first, the tool searches exhaustively, the agent writes, and the tool checks what the agent missed in its own writing.
 
 | Situation                                            | Behavior                                                    |
 | ---------------------------------------------------- | ----------------------------------------------------------- |
@@ -434,7 +453,7 @@ The agent thinks first, the tool searches exhaustively, and no page is missed be
 
 - Ask anything in natural language — "what was done recently?", "is the wiki healthy?", "show me the graph for project-alpha" all route to the right tool automatically
 - Every script in `tools/` accepts `--help` and most support `--json` for machine-readable output
-- `python tools/health.py` checks KB integrity; `lint` finds semantic gaps and suggests what's missing
+- `python tools/health.py` checks KB integrity; `heal` finds and fixes structural problems
 - Everything is plain markdown — portable, version-controllable, no vendor lock-in
 - Drop files into `raw/` from anywhere — Obsidian Web Clipper, a browser extension, or just copy-paste. Next time you open the agent, they're ready to ingest
 - Use `freespace/` for your own files — reports, exports, scratch work. Nothing there affects the wiki
@@ -447,12 +466,13 @@ The agent thinks first, the tool searches exhaustively, and no page is missed be
 raw/              # Source documents (or anonymized output from maskzone)
 maskzone/         # Privacy mode entry — files here get anonymized, originals stay
 processed/        # Original binaries archived after conversion
+staging/          # Temporary staging for ingest pipeline — do not edit manually
 rejected.json     # Documents declined during domain validation
 heal_queue.json   # Persistent heal state (pending/completed/skipped items)
 ingest_queue.json # Persistent ingest state (pending/completed/skipped items)
-wiki/             # Knowledge base (read freely, modify only via /maintainer)
+wiki/             # Knowledge base (read freely, modify only via workflows)
   index.md    # Catalog of all pages
-  log.md      # Operation history (ingest, lint, health, graph)
+  log.md      # Operation history (ingest, health, graph, anonymize)
   sources/    # One summary page per ingested document
   entities/   # People, companies, projects, products
   concepts/   # Ideas, frameworks, methods, theories

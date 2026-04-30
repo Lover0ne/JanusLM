@@ -82,17 +82,17 @@ Based on the forget type:
 #### Project forget
 1. Delete mono-tag pages (source, entity, concept pages with only this tag)
 2. For multi-tag pages: remove the project tag from frontmatter, remove `## In <project>` sections
-3. Remove deleted page entries from `wiki/index.md`
+3. For each deleted page, run `python tools/wiki_index.py remove --path "<path>"`
 
 #### Entity forget
 1. Delete `wiki/entities/<Entity>.md`
 2. In all other pages: replace `[[Entity]]` with `Entity` (plain text)
-3. Remove entity entry from `wiki/index.md`
+3. Run `python tools/wiki_index.py remove --path "entities/<Entity>.md"`
 
 #### Concept forget
 1. Delete `wiki/concepts/<Concept>.md`
 2. In all other pages: replace `[[Concept]]` with `Concept` (plain text)
-3. Remove concept entry from `wiki/index.md`
+3. Run `python tools/wiki_index.py remove --path "concepts/<Concept>.md"`
 
 **File deletion**: use the Recycle Bin method from CLAUDE.md global rules (PowerShell `SendToRecycleBin`).
 
@@ -121,4 +121,4 @@ Examples:
 - **ALWAYS suggest /heal** both before and after the forget operation.
 - **ALWAYS log** the operation via `log_write.py`.
 - **Use the Recycle Bin** for file deletion (never `rm`).
-- Follow naming conventions from the `/maintainer` skill.
+- Follow naming conventions from CLAUDE.md (source slugs: `kebab-case`, entity/concept pages: `TitleCase.md`).

@@ -111,7 +111,7 @@ def collect_corpus(tag: str) -> dict:
         concepts: list of str (names from concepts/ pages)
         text: concatenated body text (frontmatter stripped)
     """
-    exclude = {"index.md", "log.md", "lint-report.md", "health-report.md", "validation-report.md"}
+    exclude = {"index.md", "log.md", "health-report.md", "validation-report.md"}
     pages = []
     entities = []
     concepts = []

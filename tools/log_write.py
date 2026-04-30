@@ -6,9 +6,11 @@ Centralized log writer for wiki operations.
 
 Contract:
   --op <op> --title <title>  -> prepends formatted entry to wiki/log.md
+  --tag <tag>                -> project tag involved (optional)
+  --detail <detail>          -> additional operation-specific info (optional)
   Validates op against allowed list. Rejects unknown ops with error.
 
-  Valid ops (agent-driven): ingest, lint, health, query, forget, setup
+  Valid ops (agent-driven): ingest, health, forget, setup, convert, anonymize
   Ops NOT handled here: heal (heal.py), graph/report (build_graph.py)
 
 Inputs:  wiki/log.md (existing)
@@ -25,7 +27,7 @@ Fields:
   detail      Additional operation-specific info (optional)
 
 Writers of log.md:
-  log_write.py  -> agent ops (ingest, lint, health, query, forget, setup)
+  log_write.py  -> agent ops (ingest, health, forget, setup, convert, anonymize)
   heal.py       -> heal ops (automatic in mark_done())
   build_graph.py -> graph/report ops (automatic in build_graph())
   Agent direct  -> NEVER. The agent must NOT write to log.md directly.
@@ -43,7 +45,7 @@ from datetime import date
 
 from shared import append_log_raw
 
-VALID_OPS = {"ingest", "lint", "health", "forget", "setup", "convert"}
+VALID_OPS = {"ingest", "health", "forget", "setup", "convert", "anonymize"}
 
 
 def write_log(op: str, title: str, tag: str | None = None, detail: str | None = None):

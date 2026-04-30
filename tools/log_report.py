@@ -7,7 +7,7 @@ Wiki operations log reader and heal queue reporter.
 Contract:
   --json              → full JSON report (log stats + heal queue state) to stdout
   --summary           → human-readable markdown report to stdout (default)
-  --type TYPE         → filter log by operation type (ingest, heal, graph, lint)
+  --type TYPE         → filter log by operation type (ingest, heal, graph)
   --last N            → only include last N days of log entries
 
 Inputs:  wiki/log.md (operation history), heal_queue.json (current heal state)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Wiki log reader and status reporter")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--summary", action="store_true", help="Human-readable summary")
-    parser.add_argument("--type", type=str, metavar="TYPE", help="Filter by operation type (ingest, heal, graph, lint)")
+    parser.add_argument("--type", type=str, metavar="TYPE", help="Filter by operation type (ingest, heal, graph)")
     parser.add_argument("--last", type=int, metavar="N", help="Only include last N days")
     args = parser.parse_args()
 

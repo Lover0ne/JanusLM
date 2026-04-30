@@ -11,6 +11,8 @@ Contract:
                    everything already exists, nothing is modified.
   --reset-deps  -> delete .deps-ok to force dependency reinstallation.
   --mark-deps   -> create .deps-ok after successful dependency verification.
+  --reset-privacy-deps -> delete .privacy-deps-ok to force privacy deps reinstall.
+  --mark-privacy-deps  -> create .privacy-deps-ok after successful verification.
 
 Inputs:  filesystem (read structure)
 Outputs: stdout JSON

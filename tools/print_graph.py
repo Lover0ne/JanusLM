@@ -39,7 +39,7 @@ def render_html(nodes: list[dict], edges: list[dict], tag_filter: list[str] | No
     filter_json = json.dumps(tag_filter, ensure_ascii=False) if tag_filter else "null"
 
     legend_items = "".join(
-        f'<span class="legend-dot" style="--dot-color:{color}">{t}</span>'
+        f'<button class="legend-dot" style="--dot-color:{color}" data-type="{t}" onclick="toggleTypeFilter(\'{t}\')">{t}</button>'
         for t, color in TYPE_COLORS.items() if t != "unknown"
     )
 
@@ -167,7 +167,13 @@ def render_html(nodes: list[dict], edges: list[dict], tag_filter: list[str] | No
     display: flex; align-items: center; gap: 7px;
     font-size: 14px; font-weight: 600; color: var(--text-secondary);
     text-transform: capitalize;
+    background: none; border: none; cursor: pointer;
+    padding: 4px 8px; border-radius: 6px;
+    font-family: 'Urbanist', sans-serif;
+    transition: opacity 0.15s, background 0.15s;
   }}
+  .legend-dot:hover {{ background: var(--accent-faded); }}
+  .legend-dot.dimmed {{ opacity: 0.35; }}
 
   .legend-dot::before {{
     content: ''; display: inline-block;
@@ -177,24 +183,100 @@ def render_html(nodes: list[dict], edges: list[dict], tag_filter: list[str] | No
   }}
 
   #graph {{ width: 100vw; height: 100vh; padding-top: 52px; }}
+  #graph.dragging, #graph.dragging canvas {{ cursor: grabbing !important; }}
 
   #controls {{
     position: fixed; top: 62px; left: 12px;
     background: var(--bg-card);
-    padding: 14px 16px; border-radius: 10px; z-index: 10; max-width: 300px;
+    padding: 14px 16px; border-radius: 10px; z-index: 10; max-width: 340px;
     backdrop-filter: blur(8px); border: 1px solid var(--border);
     box-shadow: 0 2px 12px rgba(0,0,0,0.04);
   }}
 
-  #search {{
-    width: 100%; padding: 10px 14px;
-    background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px;
-    font-size: 15px; font-family: 'Urbanist', sans-serif;
-    outline: none; transition: border-color 0.2s;
+  #search-wrap {{
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; transition: border-color 0.2s;
+    overflow: hidden;
   }}
-  #search:focus {{ border-color: var(--accent); }}
+  #search-wrap:focus-within {{ border-color: var(--accent); }}
+
+  #search {{
+    flex: 1; padding: 10px 14px;
+    background: transparent; color: var(--text);
+    border: none;
+    font-size: 15px; font-family: 'Urbanist', sans-serif;
+    outline: none;
+  }}
   #search::placeholder {{ color: var(--text-secondary); }}
+
+  #content-toggle {{
+    background: transparent; border: none; border-left: 1px solid var(--border);
+    color: var(--text-secondary); cursor: pointer;
+    padding: 0 10px; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }}
+  #content-toggle:hover {{ background: var(--accent-faded); color: var(--text); }}
+  #content-toggle.active {{
+    background: var(--accent); color: #fff;
+  }}
+  body.dark #content-toggle.active {{ color: #1a1a2e; }}
+
+  #search-options {{
+    display: flex; align-items: center; gap: 10px;
+    margin: 5px 0 0; font-size: 12px; min-height: 18px;
+  }}
+
+  #content-hint {{
+    font-size: 11px; color: var(--text-secondary);
+    font-family: 'Urbanist', sans-serif; font-style: italic;
+  }}
+
+  #match-count {{
+    font-family: 'Overpass Mono', monospace;
+    font-size: 11px; color: var(--accent); font-weight: 600;
+    margin-left: auto; white-space: nowrap;
+  }}
+
+  #tag-filter {{
+    display: flex; flex-wrap: wrap; gap: 5px;
+    margin: 10px 0 0; max-height: 90px; overflow-y: auto;
+  }}
+
+  .tag-chip {{
+    background: var(--chip-bg); color: var(--chip-color);
+    border: 1px solid var(--chip-border);
+    border-radius: 999px; font-size: 11px; padding: 3px 10px;
+    cursor: pointer; font-family: 'Urbanist', sans-serif;
+    font-weight: 500; transition: all 0.15s; user-select: none;
+  }}
+  .tag-chip:hover {{
+    background: var(--accent-faded); border-color: var(--accent);
+  }}
+  .tag-chip.active {{
+    background: var(--accent); color: #fff;
+    border-color: var(--accent); font-weight: 600;
+  }}
+  body.dark .tag-chip.active {{
+    color: #1a1a2e;
+  }}
+
+  #spacing-bar {{
+    position: fixed; bottom: 12px; right: 12px;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-card); padding: 8px 14px;
+    border-radius: 8px; border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    z-index: 10;
+  }}
+  #spacing-bar label {{
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    font-family: 'Urbanist', sans-serif; white-space: nowrap;
+  }}
+  #spacing-slider {{
+    width: 120px; height: 4px; accent-color: var(--accent);
+    cursor: pointer;
+  }}
 
   #controls .hint {{
     margin: 8px 0 0; font-size: 11px; color: var(--text-secondary); line-height: 1.5;
@@ -383,8 +465,17 @@ def render_html(nodes: list[dict], edges: list[dict], tag_filter: list[str] | No
   </div>
 </div>
 <div id="controls">
-  <input id="search" type="text" placeholder="Search nodes..." oninput="searchNodes(this.value)">
-  <p class="hint">Click a node to explore its connections. Click the background to reset.</p>
+  <div id="search-wrap">
+    <input id="search" type="text" placeholder="Search by name..." oninput="onSearchInput()">
+    <button id="content-toggle" onclick="toggleContentSearch()" aria-label="Toggle content search" title="Search inside page content"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="12" height="14" rx="1.5"/><line x1="5" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="7.5" x2="11" y2="7.5"/><line x1="5" y1="10.5" x2="8.5" y2="10.5"/></svg></button>
+  </div>
+  <div id="search-options">
+    <span id="content-hint"></span>
+    <span id="match-count"></span>
+  </div>
+  <input type="checkbox" id="content-search" hidden>
+  <div id="tag-filter"></div>
+  <p class="hint">Click a node to explore. Toggle tags to filter.</p>
   <button id="stats-toggle" onclick="toggleStats()">
     <span class="arrow">&#9654;</span> Graph Insights
   </button>
@@ -411,6 +502,10 @@ def render_html(nodes: list[dict], edges: list[dict], tag_filter: list[str] | No
     <div id="drawer-markdown"></div>
   </div>
 </aside>
+<div id="spacing-bar">
+  <label for="spacing-slider">Spacing</label>
+  <input id="spacing-slider" type="range" min="0" max="100" value="50" oninput="updateSpacing(this.value)">
+</div>
 <div id="stats"></div>
 <script>
 const originalNodes = {nodes_json};
@@ -420,9 +515,14 @@ const nodes = new vis.DataSet(originalNodes);
 const edges = new vis.DataSet(originalEdges);
 const adjacency = new Map();
 const searchInput = document.getElementById("search");
+const contentSearchCb = document.getElementById("content-search");
+const matchCountEl = document.getElementById("match-count");
+const tagFilterEl = document.getElementById("tag-filter");
 const stats = document.getElementById("stats");
 const nodeMap = new Map(originalNodes.map(node => [node.id, node]));
 let activeNodeId = null;
+let activeTags = new Set();
+let activeTypes = new Set();
 
 function isDark() {{ return document.body.classList.contains("dark"); }}
 
@@ -452,6 +552,98 @@ function updateNetworkColors() {{
     }},
   }});
   applyFilters();
+}}
+
+function fuzzyMatch(query, text) {{
+  const q = query.toLowerCase();
+  const t = text.toLowerCase();
+  if (!q) return {{ match: true, score: 0 }};
+  if (t.includes(q)) return {{ match: true, score: 1000 - t.indexOf(q) }};
+  let qi = 0, score = 0, lastPos = -1;
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {{
+    if (t[ti] === q[qi]) {{
+      score += (lastPos === ti - 1) ? 15 : 5;
+      if (ti === 0 || /[\\s_\\x2d./]/.test(t[ti - 1])) score += 10;
+      lastPos = ti;
+      qi++;
+    }}
+  }}
+  if (qi < q.length) return {{ match: false, score: 0 }};
+  return {{ match: true, score }};
+}}
+
+function buildTagChips() {{
+  const allTags = new Set();
+  originalNodes.forEach(n => (n.tags || []).forEach(t => allTags.add(t)));
+  const sorted = [...allTags].sort();
+
+  tagFilterEl.innerHTML = "";
+  const allChip = document.createElement("button");
+  allChip.className = "tag-chip active";
+  allChip.textContent = "All";
+  allChip.dataset.tag = "__all__";
+  allChip.onclick = () => {{
+    activeTags.clear();
+    tagFilterEl.querySelectorAll(".tag-chip").forEach(c => {{
+      c.classList.toggle("active", c.dataset.tag === "__all__");
+    }});
+    applyFilters();
+  }};
+  tagFilterEl.appendChild(allChip);
+
+  for (const tag of sorted) {{
+    const chip = document.createElement("button");
+    chip.className = "tag-chip";
+    chip.textContent = tag;
+    chip.dataset.tag = tag;
+    chip.onclick = () => {{
+      if (activeTags.has(tag)) activeTags.delete(tag);
+      else activeTags.add(tag);
+      tagFilterEl.querySelectorAll(".tag-chip").forEach(c => {{
+        if (c.dataset.tag === "__all__") c.classList.toggle("active", activeTags.size === 0);
+        else c.classList.toggle("active", activeTags.has(c.dataset.tag));
+      }});
+      applyFilters();
+    }};
+    tagFilterEl.appendChild(chip);
+  }}
+}}
+
+function toggleTypeFilter(type) {{
+  if (activeTypes.has(type)) activeTypes.delete(type);
+  else activeTypes.add(type);
+  document.querySelectorAll(".legend-dot").forEach(el => {{
+    el.classList.toggle("dimmed", activeTypes.size > 0 && !activeTypes.has(el.dataset.type));
+  }});
+  applyFilters();
+}}
+
+function toggleContentSearch() {{
+  const cb = contentSearchCb;
+  cb.checked = !cb.checked;
+  const btn = document.getElementById("content-toggle");
+  const hint = document.getElementById("content-hint");
+  btn.classList.toggle("active", cb.checked);
+  searchInput.placeholder = cb.checked ? "Search in page content..." : "Search by name...";
+  hint.textContent = cb.checked ? "Searching names + page content" : "";
+  applyFilters();
+  searchInput.focus();
+}}
+
+function onSearchInput() {{
+  applyFilters(searchInput.value, activeNodeId);
+}}
+
+function contrastRing(color) {{
+  if (!color) return "#5BA4E6";
+  const hex = color.replace("#", "");
+  const v = hex.length === 3
+    ? hex.split("").map(c => c + c).join("")
+    : hex;
+  const n = Number.parseInt(v, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.45 ? "#2D6ACA" : "#5BA4E6";
 }}
 
 function hexToRgba(color, alpha) {{
@@ -634,7 +826,8 @@ function openDrawer(node, relatedIds) {{
   document.getElementById("drawer").classList.add("open");
   document.getElementById("drawer-title").textContent = node.label;
   const communityText = Number.isInteger(node.group) && node.group >= 0 ? ` · community ${{node.group}}` : "";
-  document.getElementById("drawer-meta").textContent = `${{node.type}}${{communityText}}`;
+  const tagsText = (node.tags || []).length ? ` · ${{node.tags.join(", ")}}` : "";
+  document.getElementById("drawer-meta").textContent = `${{node.type}}${{communityText}}${{tagsText}}`;
   document.getElementById("drawer-path").textContent = node.path;
   document.getElementById("drawer-preview").textContent = node.preview || "";
   document.getElementById("drawer-markdown").innerHTML = renderMarkdown(node.markdown || "");
@@ -662,10 +855,6 @@ function openDrawer(node, relatedIds) {{
   }}
 }}
 
-function searchNodes(q) {{
-  applyFilters(q, activeNodeId);
-}}
-
 function clearSelection() {{
   activeNodeId = null;
   closeDrawer();
@@ -673,56 +862,103 @@ function clearSelection() {{
 }}
 
 function applyFilters(query = searchInput.value, selectedNodeId = activeNodeId) {{
-  const lower = (query || "").trim().toLowerCase();
+  const q = (query || "").trim();
   const dark = isDark();
+  const searchContent = contentSearchCb.checked;
 
   const relatedIds = selectedNodeId
     ? new Set([selectedNodeId, ...(adjacency.get(selectedNodeId) || [])])
     : null;
 
-  let visibleNodeCount = 0;
+  let matchCount = 0;
+  const hasQuery = q.length > 0;
+  const hasTagFilter = activeTags.size > 0;
+  const hasTypeFilter = activeTypes.size > 0;
+
+  const nodeMatchScores = new Map();
+  originalNodes.forEach(node => {{
+    let matchesSearch = true;
+    let score = 0;
+    if (hasQuery) {{
+      const labelResult = fuzzyMatch(q, node.label);
+      if (labelResult.match) {{
+        score = labelResult.score;
+      }} else if (searchContent) {{
+        const plain = (node.markdown || "").replace(/^---\\n[\\s\\S]*?\\n---\\n?/, "").toLowerCase();
+        if (plain.includes(q.toLowerCase())) {{
+          score = 1;
+        }} else {{
+          matchesSearch = false;
+        }}
+      }} else {{
+        matchesSearch = false;
+      }}
+    }}
+
+    let matchesTag = true;
+    if (hasTagFilter) {{
+      const nodeTags = new Set(node.tags || []);
+      matchesTag = [...activeTags].some(t => nodeTags.has(t));
+    }}
+
+    let matchesType = true;
+    if (hasTypeFilter) {{
+      matchesType = activeTypes.has(node.type);
+    }}
+
+    const matches = matchesSearch && matchesTag && matchesType;
+    if (matches) matchCount++;
+    nodeMatchScores.set(node.id, {{ matches, score }});
+  }});
+
   const nodeUpdates = originalNodes.map(node => {{
-    const matchesSearch = !lower || node.label.toLowerCase().includes(lower);
+    const {{ matches }} = nodeMatchScores.get(node.id);
     const isActive = selectedNodeId === node.id;
     const isRelated = !relatedIds || relatedIds.has(node.id);
-    const emphasized = matchesSearch && isRelated;
+    const emphasized = matches && isRelated;
 
-    visibleNodeCount += 1;
+    const ring = contrastRing(node.color);
 
     return {{
       id: node.id,
       hidden: false,
       color: {{
-        background: emphasized ? node.color : hexToRgba(node.color, 0.14),
-        border: emphasized ? hexToRgba(node.color, 0.96) : hexToRgba(node.color, 0.22),
-        highlight: {{ background: node.color, border: hexToRgba(node.color, 1) }},
+        background: isActive ? node.color : (emphasized ? node.color : hexToRgba(node.color, 0.14)),
+        border: isActive ? ring : (emphasized ? hexToRgba(node.color, 0.96) : hexToRgba(node.color, 0.22)),
+        highlight: {{ background: node.color, border: ring }},
         hover: {{ background: node.color, border: hexToRgba(node.color, 1) }},
       }},
       font: {{
-        color: emphasized
+        color: (isActive || emphasized)
           ? (dark ? "#f2f3f8" : "#2A3439")
           : (dark ? "rgba(242,243,248,0.2)" : "rgba(42,52,57,0.2)"),
         strokeColor: dark ? "#1a1a2e" : "#FAFAF8",
       }},
       borderWidth: isActive ? 5 : 1.5,
       size: isActive ? 18 : 12,
-      shadow: isActive ? {{ enabled: true, color: hexToRgba(node.color, 0.35), size: 12 }} : {{ enabled: false }},
+      shadow: isActive
+        ? {{ enabled: true, color: hexToRgba(ring, 0.4), size: 16 }}
+        : {{ enabled: false }},
     }};
   }});
 
+  const nodeMatchSet = new Set(
+    originalNodes.filter(n => nodeMatchScores.get(n.id).matches).map(n => n.id)
+  );
+
   const edgeUpdates = originalEdges.map(edge => {{
-    const matchesSearch = !lower
-      || nodeMap.get(edge.from)?.label.toLowerCase().includes(lower)
-      || nodeMap.get(edge.to)?.label.toLowerCase().includes(lower);
+    const bothMatch = nodeMatchSet.has(edge.from) && nodeMatchSet.has(edge.to);
+    const eitherMatch = nodeMatchSet.has(edge.from) || nodeMatchSet.has(edge.to);
     const isRelated = !relatedIds || relatedIds.has(edge.from) || relatedIds.has(edge.to);
     const touchesActive = !!selectedNodeId && (edge.from === selectedNodeId || edge.to === selectedNodeId);
-    const emphasized = matchesSearch && isRelated;
+    const anyFilter = hasQuery || hasTagFilter || hasTypeFilter;
+    const emphasized = anyFilter ? (bothMatch && isRelated) : isRelated;
 
     return {{
       id: edge.id,
       hidden: false,
       width: touchesActive ? 2.5 : emphasized ? 0.8 : 0.4,
-      color: emphasized ? edge.color : hexToRgba(edge.color, 0.08),
+      color: emphasized ? hexToRgba(edge.color, 0.45) : hexToRgba(edge.color, 0.08),
     }};
   }});
 
@@ -736,17 +972,23 @@ function applyFilters(query = searchInput.value, selectedNodeId = activeNodeId) 
     }}
   }}
 
+  if (hasQuery || hasTagFilter || hasTypeFilter) {{
+    matchCountEl.textContent = `${{matchCount}}/${{originalNodes.length}}`;
+  }} else {{
+    matchCountEl.textContent = "";
+  }}
+
   const focusSuffix = selectedNodeId && nodeMap.get(selectedNodeId)
     ? ` | ${{nodeMap.get(selectedNodeId).label}}`
     : "";
-  stats.textContent = `${{visibleNodeCount}} nodes / ${{originalEdges.length}} edges${{focusSuffix}}`;
+  stats.textContent = `${{originalNodes.length}} nodes / ${{originalEdges.length}} edges${{focusSuffix}}`;
 }}
 
 const container = document.getElementById("graph");
 
 const nodeCount = originalNodes.length;
-const gravConst = nodeCount > 80 ? -8000 : nodeCount > 30 ? -5000 : -2000;
-const springLen = nodeCount > 80 ? 250 : nodeCount > 30 ? 200 : 150;
+const gravConst = nodeCount > 80 ? -12000 : nodeCount > 30 ? -8000 : -5000;
+const springLen = nodeCount > 80 ? 350 : nodeCount > 30 ? 280 : 220;
 
 const dark = isDark();
 const network = new vis.Network(container, {{ nodes, edges }}, {{
@@ -772,6 +1014,8 @@ const network = new vis.Network(container, {{ nodes, edges }}, {{
     arrows: {{ to: {{ enabled: true, scaleFactor: 0.35 }} }},
     color: {{ inherit: false }},
     hoverWidth: 2,
+    chosen: false,
+    selectionWidth: 0,
   }},
   physics: {{
     stabilization: {{ iterations: 250, updateInterval: 25, fit: true }},
@@ -785,6 +1029,7 @@ network.once("stabilizationIterationsDone", function () {{
   network.fit({{ animation: {{ duration: 400, easingFunction: "easeInOutQuad" }} }});
 }});
 
+
 function focusNode(nodeId) {{
   activeNodeId = nodeId;
   applyFilters(searchInput.value, nodeId);
@@ -796,6 +1041,23 @@ function focusNode(nodeId) {{
     animation: {{ duration: 300, easingFunction: "easeInOutQuad" }},
   }});
 }}
+
+function updateSpacing(val) {{
+  const t = val / 100;
+  const grav = -1500 - t * 12000;
+  const spr = 100 + t * 300;
+  network.setOptions({{
+    physics: {{
+      barnesHut: {{
+        gravitationalConstant: grav,
+        springLength: spr,
+      }},
+    }},
+  }});
+}}
+
+network.on("dragStart", function () {{ container.classList.add("dragging"); }});
+network.on("dragEnd", function () {{ container.classList.remove("dragging"); }});
 
 network.on("click", params => {{
   if (params.nodes.length > 0) {{
@@ -900,6 +1162,7 @@ function computeStats() {{
 }}
 
 rebuildAdjacency();
+buildTagChips();
 computeStats();
 applyFilters();
 </script>

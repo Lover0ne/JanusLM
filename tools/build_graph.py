@@ -9,6 +9,7 @@ Contract:
   --report         → also prints markdown report to stdout (orphans, hubs, communities)
   --report --save  → saves report to graph/graph-report.md
   --json           → outputs structured JSON report to stdout (used by heal.py --detect)
+  --tag tag1,tag2  → filter to pages matching at least one tag. All flags work on the filtered subgraph.
 
 Inputs:  wiki/**/*.md files (scans for [[wikilinks]] and YAML frontmatter)
 Outputs: graph/graph.json (nodes + edges), stdout (report), optionally graph/graph-report.md
@@ -29,7 +30,7 @@ import json
 import argparse
 import statistics
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 
 try:
     import networkx as nx
@@ -83,6 +84,7 @@ def build_nodes(pages: list[Path]) -> list[dict]:
             "id": page_id(p),
             "label": label,
             "type": node_type,
+            "tags": extract_tags(content),
             "color": TYPE_COLORS.get(node_type, TYPE_COLORS["unknown"]),
             "path": str(p.relative_to(REPO_ROOT)),
             "markdown": content,
@@ -399,6 +401,7 @@ def build_graph(report: bool = False, save: bool = False, as_json: bool = False,
         tags_set = set(tag_filter)
         pages = [p for p in pages if set(extract_tags(read_file(p))) & tags_set]
     today = date.today().isoformat()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     if not pages:
         if as_json:
@@ -426,8 +429,6 @@ def build_graph(report: bool = False, save: bool = False, as_json: bool = False,
     communities = detect_communities(G)
     for node in nodes:
         comm_id = communities.get(node["id"], -1)
-        if comm_id >= 0:
-            node["color"] = COMMUNITY_COLORS[comm_id % len(COMMUNITY_COLORS)]
         node["group"] = comm_id
 
     degree_map: dict[str, int] = {}
@@ -437,7 +438,7 @@ def build_graph(report: bool = False, save: bool = False, as_json: bool = False,
     for node in nodes:
         node["value"] = degree_map.get(node["id"], 0) + 1
 
-    graph_data = {"nodes": nodes, "edges": edges, "built": today, "filter": tag_filter}
+    graph_data = {"nodes": nodes, "edges": edges, "built": now, "filter": tag_filter}
     GRAPH_JSON.write_text(json.dumps(graph_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     if not as_json:

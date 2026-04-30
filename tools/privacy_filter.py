@@ -510,7 +510,7 @@ def cmd_test():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Privacy filter — local PII anonymization (maskzone → raw)"
+        description="Privacy filter — local PII anonymization (maskzone -> raw)"
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--setup", action="store_true",

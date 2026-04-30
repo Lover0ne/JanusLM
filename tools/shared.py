@@ -17,20 +17,20 @@ MASKZONE_DIR = REPO_ROOT / "maskzone"
 QUEUE_FILE = REPO_ROOT / "heal_queue.json"
 
 TYPE_COLORS = {
-    "source": "#D6B656",
+    "source": "#BFA54A",
     "entity": "#3D4A50",
-    "concept": "#A69882",
+    "concept": "#A69070",
     "unknown": "#9E9E9E",
 }
 
 TYPE_COLORS_FADED = {
-    "source": "#E8D9A8",
+    "source": "#D9C97D",
     "entity": "#9DA5AA",
-    "concept": "#CCC5B8",
+    "concept": "#C8BBAA",
     "unknown": "#C8C8C8",
 }
 
-WIKI_META_FILES = {"index.md", "log.md", "lint-report.md", "health-report.md", "validation-report.md"}
+WIKI_META_FILES = {"index.md", "log.md", "health-report.md", "validation-report.md"}
 
 
 def read_file(path: Path) -> str:
@@ -65,3 +65,5 @@ def extract_tags(content: str) -> list[str]:
     if not raw:
         return []
     return [t.strip().strip("'\"") for t in raw.split(",") if t.strip().strip("'\"")]
+
+

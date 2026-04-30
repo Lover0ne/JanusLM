@@ -25,7 +25,6 @@ If this script fails:
   - YAML parse error → a page has malformed frontmatter, fix that page
 
 Design boundary: health.py = structural, deterministic, every session.
-Lint = content quality, semantic (agent-driven), periodic.
 """
 
 import re
@@ -35,6 +34,9 @@ import argparse
 from pathlib import Path
 from datetime import date
 from shared import extract_tags, WIKI_META_FILES
+
+if sys.stdout.encoding and sys.stdout.encoding.lower().replace("-", "") != "utf8":
+    sys.stdout.reconfigure(encoding="utf-8")
 
 REPO_ROOT = Path(__file__).parent.parent
 WIKI_DIR = REPO_ROOT / "wiki"
@@ -51,7 +53,7 @@ def read_file(path: Path) -> str:
 
 def all_wiki_pages() -> list[Path]:
     """All .md files in wiki/, excluding meta files."""
-    exclude = {"index.md", "log.md", "lint-report.md", "health-report.md", "validation-report.md"}
+    exclude = {"index.md", "log.md", "health-report.md", "validation-report.md"}
     return [p for p in WIKI_DIR.rglob("*.md") if p.name not in exclude]
 
 

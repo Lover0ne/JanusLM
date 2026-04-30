@@ -59,7 +59,7 @@ Print this banner, then list what was installed:
 
 Tell the user:
 - Dependencies installed successfully
-- They can now use all wiki tools (`/wiki-ingest`, `/wiki-lint`, `/wiki-query`, `/wiki-graph`)
+- They can now use all wiki tools (`/wiki-ingest`, `/wiki-query`, `/wiki-health`, `/wiki-graph`)
 - If they ever need to reinstall, they can run `/setup` or delete `.deps-ok`
 
 Then proceed with whatever the user originally asked for.

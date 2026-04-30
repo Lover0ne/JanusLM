@@ -14,10 +14,12 @@ Inputs:  wiki/.protect (JSON, created if missing)
 Outputs: wiki/.protect (mutated on toggle), stdout JSON
 
 Flags:
-  can_forget  -> if true, the agent can run the /forget workflow.
-                 Default false (wiki protected from deletions).
-  can_modify  -> if true, the agent can edit wiki files directly
-                 (outside ingest/heal workflows). Default false.
+  can_forget        -> if true, the agent can run the forget workflow.
+                       Default false (wiki protected from deletions).
+  can_modify        -> if true, the agent can edit wiki files directly
+                       (outside ingest/heal workflows). Default false.
+  can_anonymize_pii -> if true, privacy mode is active. Documents in
+                       maskzone/ get anonymized before ingest. Default false.
 
 If this script fails:
   - wiki/.protect not found -> creates it with defaults (auto-init)
@@ -101,7 +103,7 @@ if __name__ == "__main__":
     parser.add_argument("--status", action="store_true",
                         help="Show current flags (read-only)")
     parser.add_argument("--toggle", metavar="FLAG",
-                        help="Toggle a flag (can_forget | can_modify)")
+                        help="Toggle a flag (can_forget | can_modify | can_anonymize_pii)")
     args = parser.parse_args()
 
     if args.status:

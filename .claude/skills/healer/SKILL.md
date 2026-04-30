@@ -45,11 +45,11 @@ For each item in the batch, apply the appropriate correction:
 | Type | How to fix |
 |---|---|
 | `orphan` | Read the file. Find related pages in the wiki (by topic, tag, or content). Add [[wikilinks]] in both directions — in this page and in the related pages. |
-| `phantom_hub` | This is a page referenced by others but that doesn't exist. Create it as an entity or concept page (infer from context). Add to `wiki/index.md`. |
+| `phantom_hub` | This is a page referenced by others but that doesn't exist. Create it as an entity or concept page via `python tools/ingest.py --new-page`. Then run `python tools/wiki_index.py update --path "<path>" --description "<description>"` to complete the index entry. |
 | `missing_tag` | Read the file. Deduce the project tag from content, position in the wiki, or related pages. Add the tag to the YAML frontmatter. |
 | `empty_file` | Read who links to this page ([[wikilinks]] pointing here). Use that context to populate the page with meaningful content following the page format from the maintainer skill. |
-| `index_desync_stale` | Remove the stale entry from `wiki/index.md` — the file doesn't exist anymore. |
-| `index_desync_missing` | Add the missing entry to `wiki/index.md` under the appropriate section (Sources, Entities, Concepts, or Syntheses). |
+| `index_desync_stale` | Run `python tools/wiki_index.py remove --path "<path>"` — the file doesn't exist anymore. |
+| `index_desync_missing` | Run `python tools/wiki_index.py add --section <Section> --name "<Name>" --path "<path>" --description "<description>"`. |
 | `singleton_tag` | Check if it's a typo of an existing tag (e.g., `proect-alpha` vs `project-alpha`). If typo: correct it. If legitimate: skip with reason. |
 | `log_missing` | Add the missing ingest entry via `python tools/log_write.py --op ingest --title "<source title>" --tag <tag>`. Use the file's frontmatter for title and tag. |
 
@@ -89,7 +89,7 @@ Read the output and communicate progress factually:
 - **Stop ONLY for genuine ambiguity** — when you truly cannot determine the correct fix.
 - **ALWAYS use the deterministic scripts** to update state. Never edit `heal_queue.json` directly.
 - **ALWAYS use `--done` or `--skip`** after processing items. The queue is the source of truth.
-- Follow the page format conventions from the `/maintainer` skill when creating or editing pages.
+- Follow the page format conventions from the `/wiki-ingest` skill when creating or editing pages.
 
 ---
 
